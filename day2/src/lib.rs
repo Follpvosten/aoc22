@@ -49,10 +49,10 @@ impl Shape {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Round {
     opponent_play: Shape,
-    response: Shape,
+    response: Outcome,
 }
 impl Round {
-    pub fn new(opponent_play: Shape, response: Shape) -> Self {
+    pub fn new(opponent_play: Shape, response: Outcome) -> Self {
         Self {
             opponent_play,
             response,
@@ -60,7 +60,21 @@ impl Round {
     }
 
     pub fn calc_score(&self) -> u32 {
-        self.response.play_against(self.opponent_play).score() + self.response.score()
+        use Shape::*;
+        let my_play = match self.response {
+            Outcome::Loss => match self.opponent_play {
+                Rock => Scissors,
+                Paper => Rock,
+                Scissors => Paper,
+            },
+            Outcome::Draw => self.opponent_play,
+            Outcome::Win => match self.opponent_play {
+                Rock => Paper,
+                Paper => Scissors,
+                Scissors => Rock,
+            },
+        };
+        my_play.play_against(self.opponent_play).score() + my_play.score()
     }
 }
 #[derive(Debug)]
@@ -81,9 +95,9 @@ impl FromStr for Round {
             None => return Err(RoundParseError::MissingLetter(0)),
         };
         let response = match iter.next() {
-            Some("X") => Shape::Rock,
-            Some("Y") => Shape::Paper,
-            Some("Z") => Shape::Scissors,
+            Some("X") => Outcome::Loss,
+            Some("Y") => Outcome::Draw,
+            Some("Z") => Outcome::Win,
             Some(other) => return Err(RoundParseError::UnexpectedInput(other.into())),
             None => return Err(RoundParseError::MissingLetter(1)),
         };
@@ -124,6 +138,7 @@ fn parse_input(input: &str) -> Result<Vec<Round>, RoundParseError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use Outcome::*;
     use Shape::*;
 
     const EXAMPLE_INPUT: &str = "A Y
@@ -147,22 +162,19 @@ C Z";
 
     #[test]
     fn round_evaluation() {
-        assert_eq!(Round::new(Rock, Paper).calc_score(), 8);
-        assert_eq!(Round::new(Paper, Rock).calc_score(), 1);
-        assert_eq!(Round::new(Scissors, Scissors).calc_score(), 6);
+        assert_eq!(Round::new(Rock, Draw).calc_score(), 4);
+        assert_eq!(Round::new(Paper, Loss).calc_score(), 1);
+        assert_eq!(Round::new(Scissors, Win).calc_score(), 7);
 
         // finally, the expected result for the example input is 15
-        assert_eq!(EXAMPLE_INPUT.parse::<Rounds>().unwrap().evaluate_all(), 15);
+        assert_eq!(EXAMPLE_INPUT.parse::<Rounds>().unwrap().evaluate_all(), 12);
     }
 
     #[test]
     fn round_parsing() {
-        assert_eq!("A Y".parse::<Round>().unwrap(), Round::new(Rock, Paper));
-        assert_eq!("B X".parse::<Round>().unwrap(), Round::new(Paper, Rock));
-        assert_eq!(
-            "C Z".parse::<Round>().unwrap(),
-            Round::new(Scissors, Scissors)
-        );
+        assert_eq!("A Y".parse::<Round>().unwrap(), Round::new(Rock, Draw));
+        assert_eq!("B X".parse::<Round>().unwrap(), Round::new(Paper, Loss));
+        assert_eq!("C Z".parse::<Round>().unwrap(), Round::new(Scissors, Win));
 
         // These asserts are a bit complicated because of how matches!
         // doesn't really work with strings
@@ -193,11 +205,11 @@ C Z";
             .expect("example input should parse");
         let mut rounds_iter = rounds.iter();
         let round1 = rounds_iter.next().expect("should have first round");
-        assert_eq!(round1, &Round::new(Rock, Paper));
+        assert_eq!(round1, &Round::new(Rock, Draw));
         let round2 = rounds_iter.next().expect("should have second round");
-        assert_eq!(round2, &Round::new(Paper, Rock));
+        assert_eq!(round2, &Round::new(Paper, Loss));
         let round3 = rounds_iter.next().expect("should have third round");
-        assert_eq!(round3, &Round::new(Scissors, Scissors));
+        assert_eq!(round3, &Round::new(Scissors, Win));
         assert_eq!(rounds_iter.next(), None, "should only have three rounds");
     }
 }
